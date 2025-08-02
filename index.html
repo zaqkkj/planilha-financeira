@@ -1,0 +1,2243 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Controle Financeiro Pessoal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f4f8;
+        }
+        .login-container {
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            min-height: 100vh;
+        }
+        .login-card {
+            backdrop-filter: blur(10px);
+            background-color: rgba(255, 255, 255, 0.9);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        }
+        .dashboard {
+            background-color: #f0f4f8;
+        }
+        .card {
+            background-color: white;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            transition: all 0.3s ease;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+        }
+        .nav-item {
+            transition: all 0.2s ease;
+        }
+        .nav-item:hover {
+            background-color: #e2e8f0;
+        }
+        .nav-item.active {
+            background-color: #6366f1;
+            color: white;
+        }
+        .btn-primary {
+            background-color: #6366f1;
+            color: white;
+            transition: all 0.3s ease;
+        }
+        .btn-primary:hover {
+            background-color: #4f46e5;
+        }
+        .btn-danger {
+            background-color: #ef4444;
+            color: white;
+            transition: all 0.3s ease;
+        }
+        .btn-danger:hover {
+            background-color: #dc2626;
+        }
+        .btn-success {
+            background-color: #10b981;
+            color: white;
+            transition: all 0.3s ease;
+        }
+        .btn-success:hover {
+            background-color: #059669;
+        }
+        .form-input {
+            border: 1px solid #e2e8f0;
+            border-radius: 0.375rem;
+            padding: 0.5rem 0.75rem;
+            width: 100%;
+            transition: all 0.3s ease;
+        }
+        .form-input:focus {
+            outline: none;
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+        }
+        .form-select {
+            border: 1px solid #e2e8f0;
+            border-radius: 0.375rem;
+            padding: 0.5rem 0.75rem;
+            width: 100%;
+            transition: all 0.3s ease;
+            background-color: white;
+        }
+        .form-select:focus {
+            outline: none;
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+        }
+        .table-container {
+            overflow-x: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th {
+            background-color: #f8fafc;
+            padding: 0.75rem;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        td {
+            padding: 0.75rem;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        tr:hover {
+            background-color: #f8fafc;
+        }
+        .chart-container {
+            position: relative;
+            height: 300px;
+            width: 100%;
+        }
+        .save-indicator {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            border-radius: 4px;
+            z-index: 1000;
+            transition: all 0.3s ease;
+            opacity: 0;
+        }
+        .save-indicator.show {
+            opacity: 1;
+        }
+        .cloud-sync {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            z-index: 1000;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .spinner {
+            animation: spin 1s linear infinite;
+        }
+        .tooltip {
+            position: relative;
+            display: inline-block;
+        }
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 200px;
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 5px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -100px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <!-- Tela de Login -->
+    <div id="login-screen" class="login-container flex items-center justify-center">
+        <div class="login-card w-full max-w-md p-8 rounded-lg">
+            <div class="text-center mb-8">
+                <h1 class="text-3xl font-bold text-gray-800">Controle Financeiro</h1>
+                <p class="text-gray-600 mt-2">Gerencie suas finanças pessoais</p>
+            </div>
+            
+            <div id="login-form">
+                <h2 class="text-xl font-semibold mb-4 text-gray-800">Login</h2>
+                <div class="mb-4">
+                    <label for="email" class="block text-gray-700 mb-2">Email</label>
+                    <input type="email" id="email" class="form-input" placeholder="Digite seu email">
+                </div>
+                <div class="mb-6">
+                    <label for="password" class="block text-gray-700 mb-2">Senha</label>
+                    <input type="password" id="password" class="form-input" placeholder="Digite sua senha">
+                </div>
+                <button id="login-button" class="btn-primary w-full py-2 rounded-md mb-4">Entrar</button>
+                <p class="text-center text-gray-600">Não tem uma conta? <a href="#" id="show-register" class="text-indigo-600 hover:underline">Cadastre-se</a></p>
+                <p id="login-error" class="text-red-500 text-center mt-4 hidden"></p>
+            </div>
+            
+            <div id="register-form" class="hidden">
+                <h2 class="text-xl font-semibold mb-4 text-gray-800">Cadastro</h2>
+                <div class="mb-4">
+                    <label for="new-email" class="block text-gray-700 mb-2">Email</label>
+                    <input type="email" id="new-email" class="form-input" placeholder="Digite seu email">
+                </div>
+                <div class="mb-6">
+                    <label for="new-password" class="block text-gray-700 mb-2">Senha</label>
+                    <input type="password" id="new-password" class="form-input" placeholder="Escolha uma senha">
+                </div>
+                <div class="mb-6">
+                    <label for="cloud-sync-option" class="flex items-center text-gray-700">
+                        <input type="checkbox" id="cloud-sync-option" class="mr-2" checked>
+                        Sincronizar dados na nuvem
+                    </label>
+                </div>
+                <button id="register-button" class="btn-primary w-full py-2 rounded-md mb-4">Cadastrar</button>
+                <p class="text-center text-gray-600">Já tem uma conta? <a href="#" id="show-login" class="text-indigo-600 hover:underline">Faça login</a></p>
+                <p id="register-message" class="text-center mt-4 hidden"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dashboard Principal -->
+    <div id="dashboard" class="hidden">
+        <div class="bg-indigo-600 text-white p-4">
+            <div class="container mx-auto flex justify-between items-center">
+                <h1 class="text-2xl font-bold">Controle Financeiro</h1>
+                <div class="flex items-center">
+                    <span id="user-display" class="mr-4"></span>
+                    <div class="tooltip mr-4">
+                        <span id="sync-status" class="flex items-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M5.5 9a4.5 4.5 0 019 0V10H17a1 1 0 110 2h-2v1a4.5 4.5 0 11-9 0v-1H4a1 1 0 110-2h2V9zm9 3.5a2.5 2.5 0 11-5 0v-1h5v1z" clip-rule="evenodd" />
+                            </svg>
+                            Sincronizado
+                        </span>
+                        <span class="tooltiptext">Seus dados estão sincronizados na nuvem</span>
+                    </div>
+                    <button id="logout-button" class="bg-white text-indigo-600 px-4 py-2 rounded-md hover:bg-gray-100 transition">Sair</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="container mx-auto p-4">
+            <!-- Seletor de Mês -->
+            <div class="card p-4 mb-6">
+                <div class="flex flex-wrap items-center justify-between">
+                    <div class="flex items-center mb-4 md:mb-0">
+                        <button id="prev-month" class="btn-primary px-3 py-1 rounded-md mr-2">&lt;</button>
+                        <h2 id="current-month" class="text-xl font-semibold"></h2>
+                        <button id="next-month" class="btn-primary px-3 py-1 rounded-md ml-2">&gt;</button>
+                    </div>
+                    <div class="flex">
+                        <button id="export-data" class="bg-indigo-500 text-white px-4 py-2 rounded-md mr-2 hover:bg-indigo-600 transition">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline-block mr-1" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
+                            </svg>
+                            Exportar
+                        </button>
+                        <button id="add-income-btn" class="btn-success px-4 py-2 rounded-md mr-2">+ Receita</button>
+                        <button id="add-expense-btn" class="btn-danger px-4 py-2 rounded-md">+ Despesa</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Resumo Financeiro -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <div class="card p-4">
+                    <h3 class="text-gray-500 text-sm mb-1">Saldo Inicial</h3>
+                    <div class="flex items-center">
+                        <span class="text-2xl font-bold" id="initial-balance">R$ 0,00</span>
+                        <button id="edit-initial-balance" class="ml-2 text-indigo-600 hover:text-indigo-800">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="card p-4">
+                    <h3 class="text-gray-500 text-sm mb-1">Total de Receitas</h3>
+                    <p class="text-2xl font-bold text-green-600" id="total-income">R$ 0,00</p>
+                </div>
+                <div class="card p-4">
+                    <h3 class="text-gray-500 text-sm mb-1">Total de Despesas</h3>
+                    <p class="text-2xl font-bold text-red-600" id="total-expenses">R$ 0,00</p>
+                </div>
+                <div class="card p-4">
+                    <h3 class="text-gray-500 text-sm mb-1">Saldo Final</h3>
+                    <p class="text-2xl font-bold" id="final-balance">R$ 0,00</p>
+                </div>
+            </div>
+
+            <!-- Gráficos -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div class="card p-4">
+                    <h3 class="text-lg font-semibold mb-4">Receitas por Categoria</h3>
+                    <div class="chart-container">
+                        <canvas id="income-chart"></canvas>
+                    </div>
+                </div>
+                <div class="card p-4">
+                    <h3 class="text-lg font-semibold mb-4">Despesas por Categoria</h3>
+                    <div class="chart-container">
+                        <canvas id="expense-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Abas -->
+            <div class="flex border-b mb-4">
+                <button class="nav-item active px-4 py-2 rounded-t-md" id="tab-transactions">Transações</button>
+                <button class="nav-item px-4 py-2 rounded-t-md" id="tab-categories">Categorias</button>
+                <button class="nav-item px-4 py-2 rounded-t-md" id="tab-settings">Configurações</button>
+            </div>
+
+            <!-- Conteúdo das Abas -->
+            <div id="transactions-content">
+                <!-- Tabela de Transações -->
+                <div class="card p-4">
+                    <h3 class="text-lg font-semibold mb-4">Transações</h3>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Descrição</th>
+                                    <th>Categoria</th>
+                                    <th>Valor</th>
+                                    <th>Tipo</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="transactions-table">
+                                <!-- Transações serão inseridas aqui -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="categories-content" class="hidden">
+                <!-- Gerenciamento de Categorias -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="card p-4">
+                        <h3 class="text-lg font-semibold mb-4">Categorias de Receita</h3>
+                        <div class="mb-4">
+                            <div class="flex">
+                                <input type="text" id="new-income-category" class="form-input rounded-r-none" placeholder="Nova categoria">
+                                <button id="add-income-category" class="btn-primary px-4 py-2 rounded-l-none rounded-r-md">Adicionar</button>
+                            </div>
+                        </div>
+                        <ul id="income-categories-list" class="space-y-2">
+                            <!-- Categorias de receita serão inseridas aqui -->
+                        </ul>
+                    </div>
+                    <div class="card p-4">
+                        <h3 class="text-lg font-semibold mb-4">Categorias de Despesa</h3>
+                        <div class="mb-4">
+                            <div class="flex">
+                                <input type="text" id="new-expense-category" class="form-input rounded-r-none" placeholder="Nova categoria">
+                                <button id="add-expense-category" class="btn-primary px-4 py-2 rounded-l-none rounded-r-md">Adicionar</button>
+                            </div>
+                        </div>
+                        <ul id="expense-categories-list" class="space-y-2">
+                            <!-- Categorias de despesa serão inseridas aqui -->
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div id="settings-content" class="hidden">
+                <!-- Configurações -->
+                <div class="card p-4">
+                    <h3 class="text-lg font-semibold mb-4">Configurações</h3>
+                    
+                    <div class="mb-6">
+                        <h4 class="font-medium text-gray-700 mb-2">Sincronização na Nuvem</h4>
+                        <label class="flex items-center">
+                            <input type="checkbox" id="cloud-sync-setting" class="mr-2" checked>
+                            <span>Ativar sincronização automática na nuvem</span>
+                        </label>
+                        <p class="text-sm text-gray-500 mt-1">Seus dados serão salvos automaticamente na nuvem para acesso em qualquer dispositivo.</p>
+                    </div>
+                    
+                    <div class="mb-6">
+                        <h4 class="font-medium text-gray-700 mb-2">Backup de Dados</h4>
+                        <button id="backup-data" class="bg-indigo-500 text-white px-4 py-2 rounded-md hover:bg-indigo-600 transition">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline-block mr-1" viewBox="0 0 20 20" fill="currentColor">
+                                <path d="M5.5 13a3.5 3.5 0 01-.369-6.98 4 4 0 117.753-1.977A4.5 4.5 0 1113.5 13H11V9.413l1.293 1.293a1 1 0 001.414-1.414l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L9 9.414V13H5.5z" />
+                                <path d="M9 13h2v5a1 1 0 11-2 0v-5z" />
+                            </svg>
+                            Fazer backup dos dados
+                        </button>
+                        <p class="text-sm text-gray-500 mt-1">Baixe uma cópia dos seus dados para manter em segurança.</p>
+                    </div>
+                    
+                    <div class="mb-6">
+                        <h4 class="font-medium text-gray-700 mb-2">Restaurar Dados</h4>
+                        <div class="flex items-center">
+                            <input type="file" id="restore-file" class="hidden" accept=".json">
+                            <button id="restore-data" class="bg-indigo-500 text-white px-4 py-2 rounded-md hover:bg-indigo-600 transition">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline-block mr-1" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+                                </svg>
+                                Restaurar dados
+                            </button>
+                        </div>
+                        <p class="text-sm text-gray-500 mt-1">Restaure seus dados a partir de um arquivo de backup.</p>
+                    </div>
+                    
+                    <div>
+                        <h4 class="font-medium text-gray-700 mb-2">Limpar Dados</h4>
+                        <button id="clear-data" class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline-block mr-1" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+                            </svg>
+                            Limpar todos os dados
+                        </button>
+                        <p class="text-sm text-gray-500 mt-1">Cuidado: Esta ação não pode ser desfeita.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Indicador de salvamento -->
+        <div id="save-indicator" class="save-indicator bg-green-500 text-white">
+            <span id="save-text">Dados salvos com sucesso!</span>
+        </div>
+
+        <!-- Indicador de sincronização na nuvem -->
+        <div id="cloud-sync-indicator" class="cloud-sync bg-white p-3 rounded-full shadow-lg hidden">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-600 spinner" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M8 17a5 5 0 0 1 0-10h1a7 7 0 0 1 12 0"></path>
+                <path d="M8 17h8a5 5 0 0 0 0-10"></path>
+            </svg>
+        </div>
+    </div>
+
+    <!-- Modal para Adicionar Receita -->
+    <div id="income-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-lg p-6 w-full max-w-md">
+            <h2 class="text-xl font-semibold mb-4">Adicionar Receita</h2>
+            <div class="mb-4">
+                <label for="income-date" class="block text-gray-700 mb-2">Data</label>
+                <input type="date" id="income-date" class="form-input">
+            </div>
+            <div class="mb-4">
+                <label for="income-description" class="block text-gray-700 mb-2">Descrição</label>
+                <input type="text" id="income-description" class="form-input" placeholder="Descrição da receita">
+            </div>
+            <div class="mb-4">
+                <label for="income-category" class="block text-gray-700 mb-2">Categoria</label>
+                <select id="income-category" class="form-select">
+                    <!-- Categorias serão inseridas aqui -->
+                </select>
+            </div>
+            <div class="mb-6">
+                <label for="income-amount" class="block text-gray-700 mb-2">Valor (R$)</label>
+                <input type="number" id="income-amount" class="form-input" step="0.01" min="0" placeholder="0,00">
+            </div>
+            <div class="flex justify-end">
+                <button id="cancel-income" class="px-4 py-2 border border-gray-300 rounded-md mr-2 hover:bg-gray-100">Cancelar</button>
+                <button id="save-income" class="btn-success px-4 py-2 rounded-md">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para Adicionar Despesa -->
+    <div id="expense-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-lg p-6 w-full max-w-md">
+            <h2 class="text-xl font-semibold mb-4">Adicionar Despesa</h2>
+            <div class="mb-4">
+                <label for="expense-date" class="block text-gray-700 mb-2">Data</label>
+                <input type="date" id="expense-date" class="form-input">
+            </div>
+            <div class="mb-4">
+                <label for="expense-description" class="block text-gray-700 mb-2">Descrição</label>
+                <input type="text" id="expense-description" class="form-input" placeholder="Descrição da despesa">
+            </div>
+            <div class="mb-4">
+                <label for="expense-category" class="block text-gray-700 mb-2">Categoria</label>
+                <select id="expense-category" class="form-select">
+                    <!-- Categorias serão inseridas aqui -->
+                </select>
+            </div>
+            <div class="mb-6">
+                <label for="expense-amount" class="block text-gray-700 mb-2">Valor (R$)</label>
+                <input type="number" id="expense-amount" class="form-input" step="0.01" min="0" placeholder="0,00">
+            </div>
+            <div class="flex justify-end">
+                <button id="cancel-expense" class="px-4 py-2 border border-gray-300 rounded-md mr-2 hover:bg-gray-100">Cancelar</button>
+                <button id="save-expense" class="btn-danger px-4 py-2 rounded-md">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para Editar Saldo Inicial -->
+    <div id="initial-balance-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-lg p-6 w-full max-w-md">
+            <h2 class="text-xl font-semibold mb-4">Editar Saldo Inicial</h2>
+            <div class="mb-6">
+                <label for="initial-balance-input" class="block text-gray-700 mb-2">Saldo Inicial (R$)</label>
+                <input type="number" id="initial-balance-input" class="form-input" step="0.01" placeholder="0,00">
+            </div>
+            <div class="flex justify-end">
+                <button id="cancel-initial-balance" class="px-4 py-2 border border-gray-300 rounded-md mr-2 hover:bg-gray-100">Cancelar</button>
+                <button id="save-initial-balance" class="btn-primary px-4 py-2 rounded-md">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para Editar Transação -->
+    <div id="edit-transaction-modal" class="fixed inset-0 bg-black bg-opacity50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-lg p-6 w-full max-w-md">
+            <h2 class="text-xl font-semibold mb-4">Editar Transação</h2>
+            <div class="mb-4">
+                <label for="edit-transaction-date" class="block text-gray-700 mb-2">Data</label>
+                <input type="date" id="edit-transaction-date" class="form-input">
+            </div>
+            <div class="mb-4">
+                <label for="edit-transaction-description" class="block text-gray-700 mb-2">Descrição</label>
+                <input type="text" id="edit-transaction-description" class="form-input" placeholder="Descrição">
+            </div>
+            <div class="mb-4">
+                <label for="edit-transaction-category" class="block text-gray-700 mb-2">Categoria</label>
+                <select id="edit-transaction-category" class="form-select">
+                    <!-- Categorias serão inseridas aqui -->
+                </select>
+            </div>
+            <div class="mb-6">
+                <label for="edit-transaction-amount" class="block text-gray-700 mb-2">Valor (R$)</label>
+                <input type="number" id="edit-transaction-amount" class="form-input" step="0.01" min="0" placeholder="0,00">
+            </div>
+            <input type="hidden" id="edit-transaction-id">
+            <input type="hidden" id="edit-transaction-type">
+            <div class="flex justify-end">
+                <button id="cancel-edit-transaction" class="px-4 py-2 border border-gray-300 rounded-md mr-2 hover:bg-gray-100">Cancelar</button>
+                <button id="save-edit-transaction" class="btn-primary px-4 py-2 rounded-md">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuração do Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyBl2I5LNdZwPy61SMIqKIV7009Nfgfdb70",
+            authDomain: "planilha-financeira-a4a89.firebaseapp.com",
+            projectId: "planilha-financeira-a4a89",
+            storageBucket: "planilha-financeira-a4a89.firebasestorage.app",
+            messagingSenderId: "151235060814",
+            appId: "1:151235060814:web:91fff5e41953ce96074f1f",
+            measurementId: "G-LB97J1KZTT"
+        };
+
+        // Inicializar Firebase
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        // Inicialização
+        document.addEventListener('DOMContentLoaded', function() {
+            // Configuração inicial
+            initApp();
+            
+            // Event Listeners para Login e Registro
+            document.getElementById('show-register').addEventListener('click', showRegisterForm);
+            document.getElementById('show-login').addEventListener('click', showLoginForm);
+            document.getElementById('login-button').addEventListener('click', login);
+            document.getElementById('register-button').addEventListener('click', register);
+            document.getElementById('logout-button').addEventListener('click', logout);
+            
+            // Event Listeners para navegação
+            document.getElementById('tab-transactions').addEventListener('click', showTransactionsTab);
+            document.getElementById('tab-categories').addEventListener('click', showCategoriesTab);
+            document.getElementById('tab-settings').addEventListener('click', showSettingsTab);
+            document.getElementById('prev-month').addEventListener('click', previousMonth);
+            document.getElementById('next-month').addEventListener('click', nextMonth);
+            
+            // Event Listeners para modais
+            document.getElementById('add-income-btn').addEventListener('click', showIncomeModal);
+            document.getElementById('add-expense-btn').addEventListener('click', showExpenseModal);
+            document.getElementById('cancel-income').addEventListener('click', hideIncomeModal);
+            document.getElementById('cancel-expense').addEventListener('click', hideExpenseModal);
+            document.getElementById('save-income').addEventListener('click', saveIncome);
+            document.getElementById('save-expense').addEventListener('click', saveExpense);
+            document.getElementById('edit-initial-balance').addEventListener('click', showInitialBalanceModal);
+            document.getElementById('cancel-initial-balance').addEventListener('click', hideInitialBalanceModal);
+            document.getElementById('save-initial-balance').addEventListener('click', saveInitialBalance);
+            document.getElementById('cancel-edit-transaction').addEventListener('click', hideEditTransactionModal);
+            document.getElementById('save-edit-transaction').addEventListener('click', saveEditTransaction);
+            
+            // Event Listeners para categorias
+            document.getElementById('add-income-category').addEventListener('click', addIncomeCategory);
+            document.getElementById('add-expense-category').addEventListener('click', addExpenseCategory);
+            
+            // Event Listeners para configurações
+            document.getElementById('cloud-sync-setting').addEventListener('change', toggleCloudSync);
+            document.getElementById('backup-data').addEventListener('click', backupData);
+            document.getElementById('restore-data').addEventListener('click', function() {
+                document.getElementById('restore-file').click();
+            });
+            document.getElementById('restore-file').addEventListener('change', restoreData);
+            document.getElementById('clear-data').addEventListener('click', clearData);
+            document.getElementById('export-data').addEventListener('click', exportCurrentMonthData);
+        });
+
+        // Variáveis globais
+        let currentUser = null;
+        let currentUserEmail = null;
+        let currentDate = new Date();
+        let currentMonth = currentDate.getMonth();
+        let currentYear = currentDate.getFullYear();
+        let incomeChart = null;
+        let expenseChart = null;
+        let editingTransactionId = null;
+        let cloudSyncEnabled = true;
+        let saveTimeout = null;
+        let syncTimeout = null;
+        let userData = null;
+
+        // Funções de inicialização
+        function initApp() {
+            // Verificar se há um usuário logado
+            auth.onAuthStateChanged(function(user) {
+                if (user) {
+                    currentUser = user.uid;
+                    currentUserEmail = user.email;
+                    
+                    // Verificar configuração de sincronização na nuvem
+                    db.collection('users').doc(currentUser).get().then((doc) => {
+                        if (doc.exists) {
+                            const userSettings = doc.data().settings || {};
+                            cloudSyncEnabled = userSettings.cloudSync !== undefined ? userSettings.cloudSync : true;
+                            showDashboard();
+                        } else {
+                            // Criar documento do usuário se não existir
+                            initializeUserInFirestore().then(() => {
+                                showDashboard();
+                            });
+                        }
+                    }).catch((error) => {
+                        console.error("Erro ao obter dados do usuário:", error);
+                        showLoginScreen();
+                    });
+                } else {
+                    showLoginScreen();
+                }
+            });
+        }
+
+        async function initializeUserInFirestore() {
+            try {
+                // Criar documento do usuário com dados iniciais
+                await db.collection('users').doc(currentUser).set({
+                    email: currentUserEmail,
+                    settings: {
+                        cloudSync: true
+                    },
+                    categories: {
+                        income: ['Salário', 'Freelance', 'Investimentos', 'Outros'],
+                        expense: ['Alimentação', 'Moradia', 'Transporte', 'Saúde', 'Educação', 'Lazer', 'Outros']
+                    },
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                
+                return true;
+            } catch (error) {
+                console.error("Erro ao inicializar usuário:", error);
+                return false;
+            }
+        }
+
+        // Funções de autenticação
+        function showRegisterForm() {
+            document.getElementById('login-form').classList.add('hidden');
+            document.getElementById('register-form').classList.remove('hidden');
+        }
+
+        function showLoginForm() {
+            document.getElementById('register-form').classList.add('hidden');
+            document.getElementById('login-form').classList.remove('hidden');
+        }
+
+        async function register() {
+            const email = document.getElementById('new-email').value.trim();
+            const password = document.getElementById('new-password').value;
+            const cloudSync = document.getElementById('cloud-sync-option').checked;
+            
+            if (!email || !password) {
+                showRegisterMessage('Preencha todos os campos', 'error');
+                return;
+            }
+            
+            try {
+                // Criar usuário no Firebase Auth
+                const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+                const user = userCredential.user;
+                
+                // Configurar dados iniciais no Firestore
+                await db.collection('users').doc(user.uid).set({
+                    email: email,
+                    settings: {
+                        cloudSync: cloudSync
+                    },
+                    categories: {
+                        income: ['Salário', 'Freelance', 'Investimentos', 'Outros'],
+                        expense: ['Alimentação', 'Moradia', 'Transporte', 'Saúde', 'Educação', 'Lazer', 'Outros']
+                    },
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                
+                showRegisterMessage('Cadastro realizado com sucesso!', 'success');
+                
+                // Limpar campos
+                document.getElementById('new-email').value = '';
+                document.getElementById('new-password').value = '';
+                
+                // Usuário será redirecionado automaticamente pelo listener de autenticação
+            } catch (error) {
+                console.error("Erro ao registrar:", error);
+                let errorMessage = "Erro ao criar conta";
+                
+                if (error.code === 'auth/email-already-in-use') {
+                    errorMessage = "Este email já está em uso";
+                } else if (error.code === 'auth/invalid-email') {
+                    errorMessage = "Email inválido";
+                } else if (error.code === 'auth/weak-password') {
+                    errorMessage = "Senha muito fraca";
+                }
+                
+                showRegisterMessage(errorMessage, 'error');
+            }
+        }
+
+        async function login() {
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+            
+            if (!email || !password) {
+                showLoginError('Preencha todos os campos');
+                return;
+            }
+            
+            try {
+                // Login com Firebase Auth
+                await auth.signInWithEmailAndPassword(email, password);
+                // O listener de autenticação redirecionará para o dashboard
+            } catch (error) {
+                console.error("Erro ao fazer login:", error);
+                let errorMessage = "Erro ao fazer login";
+                
+                if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+                    errorMessage = "Email ou senha incorretos";
+                } else if (error.code === 'auth/invalid-email') {
+                    errorMessage = "Email inválido";
+                } else if (error.code === 'auth/too-many-requests') {
+                    errorMessage = "Muitas tentativas. Tente novamente mais tarde";
+                }
+                
+                showLoginError(errorMessage);
+            }
+        }
+
+        async function logout() {
+            try {
+                await auth.signOut();
+                // O listener de autenticação redirecionará para a tela de login
+            } catch (error) {
+                console.error("Erro ao fazer logout:", error);
+                alert("Erro ao fazer logout. Tente novamente.");
+            }
+        }
+
+        function showLoginError(message) {
+            const errorElement = document.getElementById('login-error');
+            errorElement.textContent = message;
+            errorElement.classList.remove('hidden');
+            
+            // Esconder a mensagem após 3 segundos
+            setTimeout(() => {
+                errorElement.classList.add('hidden');
+            }, 3000);
+        }
+
+        function showRegisterMessage(message, type) {
+            const messageElement = document.getElementById('register-message');
+            messageElement.textContent = message;
+            messageElement.classList.remove('hidden');
+            
+            if (type === 'error') {
+                messageElement.classList.add('text-red-500');
+                messageElement.classList.remove('text-green-500');
+            } else {
+                messageElement.classList.add('text-green-500');
+                messageElement.classList.remove('text-red-500');
+            }
+            
+            // Esconder a mensagem após 3 segundos
+            setTimeout(() => {
+                messageElement.classList.add('hidden');
+            }, 3000);
+        }
+
+        // Funções de navegação
+        function showLoginScreen() {
+            document.getElementById('login-screen').classList.remove('hidden');
+            document.getElementById('dashboard').classList.add('hidden');
+        }
+
+        function showDashboard() {
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('dashboard').classList.remove('hidden');
+            document.getElementById('user-display').textContent = auth.currentUser.email;
+            
+            // Atualizar configuração de sincronização na nuvem
+            document.getElementById('cloud-sync-setting').checked = cloudSyncEnabled;
+            updateSyncStatus();
+            
+            // Inicializar dados do dashboard
+            updateMonthDisplay();
+            loadUserData();
+        }
+
+        function showTransactionsTab() {
+            document.getElementById('tab-transactions').classList.add('active');
+            document.getElementById('tab-categories').classList.remove('active');
+            document.getElementById('tab-settings').classList.remove('active');
+            document.getElementById('transactions-content').classList.remove('hidden');
+            document.getElementById('categories-content').classList.add('hidden');
+            document.getElementById('settings-content').classList.add('hidden');
+        }
+
+        function showCategoriesTab() {
+            document.getElementById('tab-categories').classList.add('active');
+            document.getElementById('tab-transactions').classList.remove('active');
+            document.getElementById('tab-settings').classList.remove('active');
+            document.getElementById('categories-content').classList.remove('hidden');
+            document.getElementById('transactions-content').classList.add('hidden');
+            document.getElementById('settings-content').classList.add('hidden');
+            
+            // Atualizar listas de categorias
+            updateCategoriesLists();
+        }
+
+        function showSettingsTab() {
+            document.getElementById('tab-settings').classList.add('active');
+            document.getElementById('tab-transactions').classList.remove('active');
+            document.getElementById('tab-categories').classList.remove('active');
+            document.getElementById('settings-content').classList.remove('hidden');
+            document.getElementById('transactions-content').classList.add('hidden');
+            document.getElementById('categories-content').classList.add('hidden');
+        }
+
+        function previousMonth() {
+            currentMonth--;
+            if (currentMonth < 0) {
+                currentMonth = 11;
+                currentYear--;
+            }
+            updateMonthDisplay();
+            loadUserData();
+        }
+
+        function nextMonth() {
+            currentMonth++;
+            if (currentMonth > 11) {
+                currentMonth = 0;
+                currentYear++;
+            }
+            updateMonthDisplay();
+            loadUserData();
+        }
+
+        function updateMonthDisplay() {
+            const months = [
+                'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+                'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+            ];
+            document.getElementById('current-month').textContent = `${months[currentMonth]} de ${currentYear}`;
+        }
+
+        // Funções de dados
+        function getCurrentMonthKey() {
+            return `${currentYear}-${currentMonth + 1}`;
+        }
+
+        async function loadUserData() {
+            try {
+                // Mostrar indicador de sincronização
+                document.getElementById('cloud-sync-indicator').classList.remove('hidden');
+                
+                // Obter dados do usuário do Firestore
+                const userDoc = await db.collection('users').doc(currentUser).get();
+                
+                if (!userDoc.exists) {
+                    console.error("Documento do usuário não encontrado");
+                    document.getElementById('cloud-sync-indicator').classList.add('hidden');
+                    return;
+                }
+                
+                userData = userDoc.data();
+                
+                // Obter dados do mês atual
+                const monthKey = getCurrentMonthKey();
+                const monthDocRef = db.collection('users').doc(currentUser).collection('months').doc(monthKey);
+                const monthDoc = await monthDocRef.get();
+                
+                let monthData;
+                
+                if (monthDoc.exists) {
+                    monthData = monthDoc.data();
+                } else {
+                    // Inicializar dados do mês se não existirem
+                    monthData = {
+                        initialBalance: 0,
+                        transactions: []
+                    };
+                    
+                    // Se não for o primeiro mês, o saldo inicial é o saldo final do mês anterior
+                    const today = new Date();
+                    if (currentYear > today.getFullYear() || (currentYear === today.getFullYear() && currentMonth > today.getMonth())) {
+                        const prevMonth = currentMonth === 0 ? 12 : currentMonth;
+                        const prevYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+                        const prevMonthKey = `${prevYear}-${prevMonth}`;
+                        
+                        const prevMonthDoc = await db.collection('users').doc(currentUser).collection('months').doc(prevMonthKey).get();
+                        
+                        if (prevMonthDoc.exists) {
+                            const prevMonthData = prevMonthDoc.data();
+                            const prevFinalBalance = calculateFinalBalance(prevMonthData);
+                            monthData.initialBalance = prevFinalBalance;
+                        }
+                    }
+                    
+                    // Salvar dados iniciais do mês
+                    await monthDocRef.set(monthData);
+                }
+                
+                // Atualizar saldo inicial
+                document.getElementById('initial-balance').textContent = formatCurrency(monthData.initialBalance);
+                
+                // Atualizar transações
+                updateTransactionsTable(monthData.transactions || []);
+                
+                // Atualizar resumo financeiro
+                updateFinancialSummary(monthData);
+                
+                // Atualizar gráficos
+                updateCharts(monthData.transactions || [], userData.categories);
+                
+                // Atualizar listas de categorias nos modais
+                updateCategorySelects(userData.categories);
+                
+                // Esconder indicador de sincronização
+                document.getElementById('cloud-sync-indicator').classList.add('hidden');
+                
+                // Atualizar status de sincronização
+                updateSyncStatus(true);
+                
+            } catch (error) {
+                console.error("Erro ao carregar dados:", error);
+                document.getElementById('cloud-sync-indicator').classList.add('hidden');
+                showSaveIndicator('Erro ao carregar dados', 'error');
+            }
+        }
+
+        function updateTransactionsTable(transactions) {
+            const tableBody = document.getElementById('transactions-table');
+            tableBody.innerHTML = '';
+            
+            if (transactions.length === 0) {
+                const row = document.createElement('tr');
+                row.innerHTML = `<td colspan="6" class="text-center py-4 text-gray-500">Nenhuma transação encontrada</td>`;
+                tableBody.appendChild(row);
+                return;
+            }
+            
+            // Ordenar transações por data (mais recente primeiro)
+            const sortedTransactions = [...transactions].sort((a, b) => {
+                return new Date(b.date) - new Date(a.date);
+            });
+            
+            sortedTransactions.forEach((transaction) => {
+                const row = document.createElement('tr');
+                const isIncome = transaction.type === 'income';
+                
+                row.innerHTML = `
+                    <td>${formatDate(transaction.date)}</td>
+                    <td>${transaction.description}</td>
+                    <td>${transaction.category}</td>
+                    <td class="${isIncome ? 'text-green-600' : 'text-red-600'}">${formatCurrency(transaction.amount)}</td>
+                    <td>${isIncome ? 'Receita' : 'Despesa'}</td>
+                    <td>
+                        <button class="text-indigo-600 hover:text-indigo-800 mr-2 edit-transaction" data-id="${transaction.id}">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                            </svg>
+                        </button>
+                        <button class="text-red-600 hover:text-red-800 delete-transaction" data-id="${transaction.id}">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+                            </svg>
+                        </button>
+                    </td>
+                `;
+                
+                tableBody.appendChild(row);
+            });
+            
+            // Adicionar event listeners para editar e excluir
+            document.querySelectorAll('.edit-transaction').forEach(button => {
+                button.addEventListener('click', function() {
+                    const id = this.getAttribute('data-id');
+                    editTransaction(id);
+                });
+            });
+            
+            document.querySelectorAll('.delete-transaction').forEach(button => {
+                button.addEventListener('click', function() {
+                    const id = this.getAttribute('data-id');
+                    deleteTransaction(id);
+                });
+            });
+        }
+
+        function updateFinancialSummary(monthData) {
+            const initialBalance = monthData.initialBalance || 0;
+            let totalIncome = 0;
+            let totalExpenses = 0;
+            
+            if (monthData.transactions) {
+                monthData.transactions.forEach(transaction => {
+                    if (transaction.type === 'income') {
+                        totalIncome += transaction.amount;
+                    } else {
+                        totalExpenses += transaction.amount;
+                    }
+                });
+            }
+            
+            const finalBalance = initialBalance + totalIncome - totalExpenses;
+            
+            document.getElementById('total-income').textContent = formatCurrency(totalIncome);
+            document.getElementById('total-expenses').textContent = formatCurrency(totalExpenses);
+            document.getElementById('final-balance').textContent = formatCurrency(finalBalance);
+            
+            // Definir cor do saldo final
+            const finalBalanceElement = document.getElementById('final-balance');
+            if (finalBalance > 0) {
+                finalBalanceElement.classList.add('text-green-600');
+                finalBalanceElement.classList.remove('text-red-600');
+            } else if (finalBalance < 0) {
+                finalBalanceElement.classList.add('text-red-600');
+                finalBalanceElement.classList.remove('text-green-600');
+            } else {
+                finalBalanceElement.classList.remove('text-green-600', 'text-red-600');
+            }
+        }
+
+        function updateCharts(transactions, categories) {
+            // Preparar dados para gráficos
+            const incomeData = {};
+            const expenseData = {};
+            
+            // Inicializar categorias com zero
+            if (categories && categories.income) {
+                categories.income.forEach(category => {
+                    incomeData[category] = 0;
+                });
+            }
+            
+            if (categories && categories.expense) {
+                categories.expense.forEach(category => {
+                    expenseData[category] = 0;
+                });
+            }
+            
+            // Somar valores por categoria
+            if (transactions) {
+                transactions.forEach(transaction => {
+                    if (transaction.type === 'income') {
+                        incomeData[transaction.category] = (incomeData[transaction.category] || 0) + transaction.amount;
+                    } else {
+                        expenseData[transaction.category] = (expenseData[transaction.category] || 0) + transaction.amount;
+                    }
+                });
+            }
+            
+            // Filtrar categorias com valores
+            const incomeCategories = Object.keys(incomeData).filter(category => incomeData[category] > 0);
+            const incomeValues = incomeCategories.map(category => incomeData[category]);
+            
+            const expenseCategories = Object.keys(expenseData).filter(category => expenseData[category] > 0);
+            const expenseValues = expenseCategories.map(category => expenseData[category]);
+            
+            // Cores para gráficos
+            const incomeColors = generateColors(incomeCategories.length, 'income');
+            const expenseColors = generateColors(expenseCategories.length, 'expense');
+            
+            // Atualizar gráfico de receitas
+            if (incomeChart) {
+                incomeChart.destroy();
+            }
+            
+            if (incomeCategories.length > 0) {
+                incomeChart = new Chart(document.getElementById('income-chart'), {
+                    type: 'doughnut',
+                    data: {
+                        labels: incomeCategories,
+                        datasets: [{
+                            data: incomeValues,
+                            backgroundColor: incomeColors,
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'right'
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const value = context.raw;
+                                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                        const percentage = Math.round((value / total) * 100);
+                                        return `${formatCurrency(value)} (${percentage}%)`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            } else {
+                const ctx = document.getElementById('income-chart').getContext('2d');
+                ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+                ctx.font = '14px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('Nenhuma receita registrada', ctx.canvas.width / 2, ctx.canvas.height / 2);
+            }
+            
+            // Atualizar gráfico de despesas
+            if (expenseChart) {
+                expenseChart.destroy();
+            }
+            
+            if (expenseCategories.length > 0) {
+                expenseChart = new Chart(document.getElementById('expense-chart'), {
+                    type: 'doughnut',
+                    data: {
+                        labels: expenseCategories,
+                        datasets: [{
+                            data: expenseValues,
+                            backgroundColor: expenseColors,
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'right'
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const value = context.raw;
+                                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                        const percentage = Math.round((value / total) * 100);
+                                        return `${formatCurrency(value)} (${percentage}%)`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            } else {
+                const ctx = document.getElementById('expense-chart').getContext('2d');
+                ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+                ctx.font = '14px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('Nenhuma despesa registrada', ctx.canvas.width / 2, ctx.canvas.height / 2);
+            }
+        }
+
+        function updateCategorySelects(categories) {
+            // Atualizar select de categorias de receita
+            const incomeSelect = document.getElementById('income-category');
+            incomeSelect.innerHTML = '';
+            
+            if (categories && categories.income) {
+                categories.income.forEach(category => {
+                    const option = document.createElement('option');
+                    option.value = category;
+                    option.textContent = category;
+                    incomeSelect.appendChild(option);
+                });
+            }
+            
+            // Atualizar select de categorias de despesa
+            const expenseSelect = document.getElementById('expense-category');
+            expenseSelect.innerHTML = '';
+            
+            if (categories && categories.expense) {
+                categories.expense.forEach(category => {
+                    const option = document.createElement('option');
+                    option.value = category;
+                    option.textContent = category;
+                    expenseSelect.appendChild(option);
+                });
+            }
+        }
+
+        function updateCategoriesLists() {
+            if (!userData || !userData.categories) return;
+            
+            const categories = userData.categories;
+            
+            // Atualizar lista de categorias de receita
+            const incomeList = document.getElementById('income-categories-list');
+            incomeList.innerHTML = '';
+            
+            categories.income.forEach(category => {
+                const li = document.createElement('li');
+                li.className = 'flex justify-between items-center p-2 border-b';
+                li.innerHTML = `
+                    <span>${category}</span>
+                    <button class="text-red-600 hover:text-red-800 delete-income-category" data-category="${category}">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+                        </svg>
+                    </button>
+                `;
+                incomeList.appendChild(li);
+            });
+            
+            // Atualizar lista de categorias de despesa
+            const expenseList = document.getElementById('expense-categories-list');
+            expenseList.innerHTML = '';
+            
+            categories.expense.forEach(category => {
+                const li = document.createElement('li');
+                li.className = 'flex justify-between items-center p-2 border-b';
+                li.innerHTML = `
+                    <span>${category}</span>
+                    <button class="text-red-600 hover:text-red-800 delete-expense-category" data-category="${category}">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+                        </svg>
+                    </button>
+                `;
+                expenseList.appendChild(li);
+            });
+            
+            // Adicionar event listeners para excluir categorias
+            document.querySelectorAll('.delete-income-category').forEach(button => {
+                button.addEventListener('click', function() {
+                    const category = this.getAttribute('data-category');
+                    deleteCategory('income', category);
+                });
+            });
+            
+            document.querySelectorAll('.delete-expense-category').forEach(button => {
+                button.addEventListener('click', function() {
+                    const category = this.getAttribute('data-category');
+                    deleteCategory('expense', category);
+                });
+            });
+        }
+
+        // Funções de modais
+        function showIncomeModal() {
+            // Definir data atual no campo de data
+            document.getElementById('income-date').valueAsDate = new Date();
+            
+            // Limpar outros campos
+            document.getElementById('income-description').value = '';
+            document.getElementById('income-amount').value = '';
+            
+            // Exibir modal
+            document.getElementById('income-modal').classList.remove('hidden');
+        }
+
+        function hideIncomeModal() {
+            document.getElementById('income-modal').classList.add('hidden');
+        }
+
+        function showExpenseModal() {
+            // Definir data atual no campo de data
+            document.getElementById('expense-date').valueAsDate = new Date();
+            
+            // Limpar outros campos
+            document.getElementById('expense-description').value = '';
+            document.getElementById('expense-amount').value = '';
+            
+            // Exibir modal
+            document.getElementById('expense-modal').classList.remove('hidden');
+        }
+
+        function hideExpenseModal() {
+            document.getElementById('expense-modal').classList.add('hidden');
+        }
+
+        function showInitialBalanceModal() {
+            // Obter saldo inicial atual
+            db.collection('users').doc(currentUser).collection('months').doc(getCurrentMonthKey()).get()
+                .then((doc) => {
+                    if (doc.exists) {
+                        const initialBalance = doc.data().initialBalance || 0;
+                        document.getElementById('initial-balance-input').value = initialBalance;
+                    } else {
+                        document.getElementById('initial-balance-input').value = 0;
+                    }
+                    document.getElementById('initial-balance-modal').classList.remove('hidden');
+                })
+                .catch((error) => {
+                    console.error("Erro ao obter saldo inicial:", error);
+                    showSaveIndicator('Erro ao obter saldo inicial', 'error');
+                });
+        }
+
+        function hideInitialBalanceModal() {
+            document.getElementById('initial-balance-modal').classList.add('hidden');
+        }
+
+        async function showEditTransactionModal(transaction) {
+            // Preencher campos com dados da transação
+            document.getElementById('edit-transaction-date').value = transaction.date;
+            document.getElementById('edit-transaction-description').value = transaction.description;
+            document.getElementById('edit-transaction-amount').value = transaction.amount;
+            document.getElementById('edit-transaction-id').value = transaction.id;
+            document.getElementById('edit-transaction-type').value = transaction.type;
+            
+            // Atualizar select de categorias
+            const categorySelect = document.getElementById('edit-transaction-category');
+            categorySelect.innerHTML = '';
+            
+            const categoryList = transaction.type === 'income' ? userData.categories.income : userData.categories.expense;
+            categoryList.forEach(category => {
+                const option = document.createElement('option');
+                option.value = category;
+                option.textContent = category;
+                if (category === transaction.category) {
+                    option.selected = true;
+                }
+                categorySelect.appendChild(option);
+            });
+            
+            // Exibir modal
+            document.getElementById('edit-transaction-modal').classList.remove('hidden');
+        }
+
+        function hideEditTransactionModal() {
+            document.getElementById('edit-transaction-modal').classList.add('hidden');
+        }
+
+        // Funções de ação
+        async function saveIncome() {
+            const date = document.getElementById('income-date').value;
+            const description = document.getElementById('income-description').value.trim();
+            const category = document.getElementById('income-category').value;
+            const amount = parseFloat(document.getElementById('income-amount').value);
+            
+            if (!date || !description || !amount || isNaN(amount)) {
+                alert('Preencha todos os campos corretamente');
+                return;
+            }
+            
+            try {
+                // Mostrar indicador de sincronização
+                document.getElementById('cloud-sync-indicator').classList.remove('hidden');
+                
+                // Obter referência do documento do mês
+                const monthRef = db.collection('users').doc(currentUser).collection('months').doc(getCurrentMonthKey());
+                
+                // Obter dados atuais do mês
+                const monthDoc = await monthRef.get();
+                let monthData = monthDoc.exists ? monthDoc.data() : { initialBalance: 0, transactions: [] };
+                
+                // Criar nova transação
+                const newTransaction = {
+                    id: generateId(),
+                    date: date,
+                    description: description,
+                    category: category,
+                    amount: amount,
+                    type: 'income',
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                };
+                
+                // Adicionar à lista de transações
+                if (!monthData.transactions) monthData.transactions = [];
+                monthData.transactions.push(newTransaction);
+                
+                // Salvar dados atualizados
+                await monthRef.set(monthData);
+                
+                // Mostrar indicador de salvamento
+                showSaveIndicator('Receita adicionada com sucesso!');
+                
+                // Atualizar interface
+                loadUserData();
+                
+                // Fechar modal
+                hideIncomeModal();
+                
+            } catch (error) {
+                console.error("Erro ao salvar receita:", error);
+                document.getElementById('cloud-sync-indicator').classList.add('hidden');
+                showSaveIndicator('Erro ao salvar receita', 'error');
+            }
+        }
+
+        async function saveExpense() {
+            const date = document.getElementById('expense-date').value;
+            const description = document.getElementById('expense-description').value.trim();
+            const category = document.getElementById('expense-category').value;
+            const amount = parseFloat(document.getElementById('expense-amount').value);
+            
+            if (!date || !description || !amount || isNaN(amount)) {
+                alert('Preencha todos os campos corretamente');
+                return;
+            }
+            
+            try {
+                // Mostrar indicador de sincronização
+                document.getElementById('cloud-sync-indicator').classList.remove('hidden');
+                
+                // Obter referência do documento do mês
+                const monthRef = db.collection('users').doc(currentUser).collection('months').doc(getCurrentMonthKey());
+                
+                // Obter dados atuais do mês
+                const monthDoc = await monthRef.get();
+                let monthData = monthDoc.exists ? monthDoc.data() : { initialBalance: 0, transactions: [] };
+                
+                // Criar nova transação
+                const newTransaction = {
+                    id: generateId(),
+                    date: date,
+                    description: description,
+                    category: category,
+                    amount: amount,
+                    type: 'expense',
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                };
+                
+                // Adicionar à lista de transações
+                if (!monthData.transactions) monthData.transactions = [];
+                monthData.transactions.push(newTransaction);
+                
+                // Salvar dados atualizados
+                await monthRef.set(monthData);
+                
+                // Mostrar indicador de salvamento
+                showSaveIndicator('Despesa adicionada com sucesso!');
+                
+                // Atualizar interface
+                loadUserData();
+                
+                // Fechar modal
+                hideExpenseModal();
+                
+            } catch (error) {
+                console.error("Erro ao salvar despesa:", error);
+                document.getElementById('cloud-sync-indicator').classList.add('hidden');
+                showSaveIndicator('Erro ao salvar despesa', 'error');
+            }
+        }
+
+        async function saveInitialBalance() {
+            const initialBalance = parseFloat(document.getElementById('initial-balance-input').value);
+            
+            if (isNaN(initialBalance)) {
+                alert('Digite um valor válido');
+                return;
+            }
+            
+            try {
+                // Mostrar indicador de sincronização
+                document.getElementById('cloud-sync-indicator').classList.remove('hidden');
+                
+                // Obter referência do documento do mês
+                const monthRef = db.collection('users').doc(currentUser).collection('months').doc(getCurrentMonthKey());
+                
+                // Obter dados atuais do mês
+                const monthDoc = await monthRef.get();
+                let monthData = monthDoc.exists ? monthDoc.data() : { initialBalance: 0, transactions: [] };
+                
+                // Atualizar saldo inicial
+                monthData.initialBalance = initialBalance;
+                
+                // Salvar dados atualizados
+                await monthRef.set(monthData);
+                
+                // Mostrar indicador de salvamento
+                showSaveIndicator('Saldo inicial atualizado com sucesso!');
+                
+                // Atualizar interface
+                loadUserData();
+                
+                // Fechar modal
+                hideInitialBalanceModal();
+                
+            } catch (error) {
+                console.error("Erro ao salvar saldo inicial:", error);
+                document.getElementById('cloud-sync-indicator').classList.add('hidden');
+                showSaveIndicator('Erro ao salvar saldo inicial', 'error');
+            }
+        }
+
+        async function editTransaction(id) {
+            try {
+                // Obter dados do mês atual
+                const monthDoc = await db.collection('users').doc(currentUser).collection('months').doc(getCurrentMonthKey()).get();
+                
+                if (!monthDoc.exists) {
+                    console.error("Documento do mês não encontrado");
+                    return;
+                }
+                
+                const monthData = monthDoc.data();
+                
+                // Encontrar transação pelo ID
+                const transaction = monthData.transactions.find(t => t.id === id);
+                if (!transaction) {
+                    console.error("Transação não encontrada");
+                    return;
+                }
+                
+                // Exibir modal de edição
+                showEditTransactionModal(transaction);
+                
+            } catch (error) {
+                console.error("Erro ao editar transação:", error);
+                showSaveIndicator('Erro ao editar transação', 'error');
+            }
+        }
+
+        async function saveEditTransaction() {
+            const id = document.getElementById('edit-transaction-id').value;
+            const type = document.getElementById('edit-transaction-type').value;
+            const date = document.getElementById('edit-transaction-date').value;
+            const description = document.getElementById('edit-transaction-description').value.trim();
+            const category = document.getElementById('edit-transaction-category').value;
+            const amount = parseFloat(document.getElementById('edit-transaction-amount').value);
+            
+            if (!date || !description || !amount || isNaN(amount)) {
+                alert('Preencha todos os campos corretamente');
+                return;
+            }
+            
+            try {
+                // Mostrar indicador de sincronização
+                document.getElementById('cloud-sync-indicator').classList.remove('hidden');
+                
+                // Obter referência do documento do mês
+                const monthRef = db.collection('users').doc(currentUser).collection('months').doc(getCurrentMonthKey());
+                
+                // Obter dados atuais do mês
+                const monthDoc = await monthRef.get();
+                
+                if (!monthDoc.exists) {
+                    throw new Error("Documento do mês não encontrado");
+                }
+                
+                const monthData = monthDoc.data();
+                
+                // Encontrar índice da transação
+                const index = monthData.transactions.findIndex(t => t.id === id);
+                if (index === -1) {
+                    throw new Error("Transação não encontrada");
+                }
+                
+                // Atualizar transação
+                monthData.transactions[index] = {
+                    id: id,
+                    date: date,
+                    description: description,
+                    category: category,
+                    amount: amount,
+                    type: type,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                };
+                
+                // Salvar dados atualizados
+                await monthRef.update({
+                    transactions: monthData.transactions
+                });
+                
+                // Mostrar indicador de salvamento
+                showSaveIndicator('Transação atualizada com sucesso!');
+                
+                // Atualizar interface
+                loadUserData();
+                
+                // Fechar modal
+                hideEditTransactionModal();
+                
+            } catch (error) {
+                console.error("Erro ao salvar edição de transação:", error);
+                document.getElementById('cloud-sync-indicator').classList.add('hidden');
+                showSaveIndicator('Erro ao salvar edição', 'error');
+            }
+        }
+
+        async function deleteTransaction(id) {
+            if (!confirm('Tem certeza que deseja excluir esta transação?')) {
+                return;
+            }
+            
+            try {
+                // Mostrar indicador de sincronização
+                document.getElementById('cloud-sync-indicator').classList.remove('hidden');
+                
+                // Obter referência do documento do mês
+                const monthRef = db.collection('users').doc(currentUser).collection('months').doc(getCurrentMonthKey());
+                
+                // Obter dados atuais do mês
+                const monthDoc = await monthRef.get();
+                
+                if (!monthDoc.exists) {
+                    throw new Error("Documento do mês não encontrado");
+                }
+                
+                const monthData = monthDoc.data();
+                
+                // Filtrar transações, removendo a que tem o ID especificado
+                monthData.transactions = monthData.transactions.filter(t => t.id !== id);
+                
+                // Salvar dados atualizados
+                await monthRef.update({
+                    transactions: monthData.transactions
+                });
+                
+                // Mostrar indicador de salvamento
+                showSaveIndicator('Transação excluída com sucesso!');
+                
+                // Atualizar interface
+                loadUserData();
+                
+            } catch (error) {
+                console.error("Erro ao excluir transação:", error);
+                document.getElementById('cloud-sync-indicator').classList.add('hidden');
+                showSaveIndicator('Erro ao excluir transação', 'error');
+            }
+        }
+
+        async function addIncomeCategory() {
+            const newCategory = document.getElementById('new-income-category').value.trim();
+            
+            if (!newCategory) {
+                alert('Digite o nome da categoria');
+                return;
+            }
+            
+            try {
+                // Mostrar indicador de sincronização
+                document.getElementById('cloud-sync-indicator').classList.remove('hidden');
+                
+                // Obter referência do documento do usuário
+                const userRef = db.collection('users').doc(currentUser);
+                
+                // Obter dados atuais do usuário
+                const userDoc = await userRef.get();
+                
+                if (!userDoc.exists) {
+                    throw new Error("Documento do usuário não encontrado");
+                }
+                
+                const userData = userDoc.data();
+                
+                // Verificar se a categoria já existe
+                if (userData.categories.income.includes(newCategory)) {
+                    alert('Esta categoria já existe');
+                    document.getElementById('cloud-sync-indicator').classList.add('hidden');
+                    return;
+                }
+                
+                // Adicionar nova categoria
+                userData.categories.income.push(newCategory);
+                
+                // Salvar dados atualizados
+                await userRef.update({
+                    'categories.income': userData.categories.income
+                });
+                
+                // Mostrar indicador de salvamento
+                showSaveIndicator('Categoria adicionada com sucesso!');
+                
+                // Limpar campo
+                document.getElementById('new-income-category').value = '';
+                
+                // Atualizar interface
+                this.userData = userData;
+                updateCategoriesLists();
+                updateCategorySelects(userData.categories);
+                
+                // Esconder indicador de sincronização
+                document.getElementById('cloud-sync-indicator').classList.add('hidden');
+                
+            } catch (error) {
+                console.error("Erro ao adicionar categoria:", error);
+                document.getElementById('cloud-sync-indicator').classList.add('hidden');
+                showSaveIndicator('Erro ao adicionar categoria', 'error');
+            }
+        }
+
+        async function addExpenseCategory() {
+            const newCategory = document.getElementById('new-expense-category').value.trim();
+            
+            if (!newCategory) {
+                alert('Digite o nome da categoria');
+                return;
+            }
+            
+            try {
+                // Mostrar indicador de sincronização
+                document.getElementById('cloud-sync-indicator').classList.remove('hidden');
+                
+                // Obter referência do documento do usuário
+                const userRef = db.collection('users').doc(currentUser);
+                
+                // Obter dados atuais do usuário
+                const userDoc = await userRef.get();
+                
+                if (!userDoc.exists) {
+                    throw new Error("Documento do usuário não encontrado");
+                }
+                
+                const userData = userDoc.data();
+                
+                // Verificar se a categoria já existe
+                if (userData.categories.expense.includes(newCategory)) {
+                    alert('Esta categoria já existe');
+                    document.getElementById('cloud-sync-indicator').classList.add('hidden');
+                    return;
+                }
+                
+                // Adicionar nova categoria
+                userData.categories.expense.push(newCategory);
+                
+                // Salvar dados atualizados
+                await userRef.update({
+                    'categories.expense': userData.categories.expense
+                });
+                
+                // Mostrar indicador de salvamento
+                showSaveIndicator('Categoria adicionada com sucesso!');
+                
+                // Limpar campo
+                document.getElementById('new-expense-category').value = '';
+                
+                // Atualizar interface
+                this.userData = userData;
+                updateCategoriesLists();
+                updateCategorySelects(userData.categories);
+                
+                // Esconder indicador de sincronização
+                document.getElementById('cloud-sync-indicator').classList.add('hidden');
+                
+            } catch (error) {
+                console.error("Erro ao adicionar categoria:", error);
+                document.getElementById('cloud-sync-indicator').classList.add('hidden');
+                showSaveIndicator('Erro ao adicionar categoria', 'error');
+            }
+        }
+
+        async function deleteCategory(type, category) {
+            // Verificar se há transações usando esta categoria
+            try {
+                // Obter todas as coleções de meses do usuário
+                const monthsSnapshot = await db.collection('users').doc(currentUser).collection('months').get();
+                let hasTransactions = false;
+                
+                // Verificar em todos os meses
+                for (const monthDoc of monthsSnapshot.docs) {
+                    const monthData = monthDoc.data();
+                    if (monthData.transactions && monthData.transactions.some(t => t.type === type && t.category === category)) {
+                        hasTransactions = true;
+                        break;
+                    }
+                }
+                
+                if (hasTransactions) {
+                    alert('Não é possível excluir esta categoria pois existem transações associadas a ela');
+                    return;
+                }
+                
+                if (!confirm(`Tem certeza que deseja excluir a categoria "${category}"?`)) {
+                    return;
+                }
+                
+                // Mostrar indicador de sincronização
+                document.getElementById('cloud-sync-indicator').classList.remove('hidden');
+                
+                // Obter referência do documento do usuário
+                const userRef = db.collection('users').doc(currentUser);
+                
+                // Obter dados atuais do usuário
+                const userDoc = await userRef.get();
+                
+                if (!userDoc.exists) {
+                    throw new Error("Documento do usuário não encontrado");
+                }
+                
+                const userData = userDoc.data();
+                
+                // Remover categoria
+                userData.categories[type] = userData.categories[type].filter(c => c !== category);
+                
+                // Salvar dados atualizados
+                await userRef.update({
+                    [`categories.${type}`]: userData.categories[type]
+                });
+                
+                // Mostrar indicador de salvamento
+                showSaveIndicator('Categoria excluída com sucesso!');
+                
+                // Atualizar interface
+                this.userData = userData;
+                updateCategoriesLists();
+                updateCategorySelects(userData.categories);
+                
+                // Esconder indicador de sincronização
+                document.getElementById('cloud-sync-indicator').classList.add('hidden');
+                
+            } catch (error) {
+                console.error("Erro ao excluir categoria:", error);
+                document.getElementById('cloud-sync-indicator').classList.add('hidden');
+                showSaveIndicator('Erro ao excluir categoria', 'error');
+            }
+        }
+
+        // Funções de sincronização e backup
+        async function toggleCloudSync() {
+            cloudSyncEnabled = document.getElementById('cloud-sync-setting').checked;
+            
+            try {
+                // Mostrar indicador de sincronização
+                document.getElementById('cloud-sync-indicator').classList.remove('hidden');
+                
+                // Atualizar configuração no Firestore
+                await db.collection('users').doc(currentUser).update({
+                    'settings.cloudSync': cloudSyncEnabled
+                });
+                
+                updateSyncStatus();
+                
+                if (cloudSyncEnabled) {
+                    showSaveIndicator('Sincronização na nuvem ativada');
+                } else {
+                    showSaveIndicator('Sincronização na nuvem desativada');
+                }
+                
+                // Esconder indicador de sincronização
+                document.getElementById('cloud-sync-indicator').classList.add('hidden');
+                
+            } catch (error) {
+                console.error("Erro ao atualizar configuração de sincronização:", error);
+                document.getElementById('cloud-sync-indicator').classList.add('hidden');
+                showSaveIndicator('Erro ao atualizar configuração', 'error');
+            }
+        }
+
+        function updateSyncStatus(justSynced = false) {
+            if (cloudSyncEnabled) {
+                if (justSynced) {
+                    const formattedDate = new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString();
+                    document.getElementById('sync-status').innerHTML = `
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1 text-green-500" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                        </svg>
+                        Sincronizado
+                    `;
+                    document.querySelector('#sync-status + .tooltiptext').textContent = `Última sincronização: ${formattedDate}`;
+                } else {
+                    document.getElementById('sync-status').innerHTML = `
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1 text-green-500" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                        </svg>
+                        Sincronizado
+                    `;
+                    document.querySelector('#sync-status + .tooltiptext').textContent = `Seus dados estão sincronizados na nuvem`;
+                }
+            } else {
+                document.getElementById('sync-status').innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M13.477 14.89A6 6 0 015.11 6.524l8.367 8.368zm1.414-1.414L6.524 5.11a6 6 0 018.367 8.367zM18 10a8 8 0 11-16 0 8 8 0 0116 0z" clip-rule="evenodd" />
+                    </svg>
+                    Sincronização desativada
+                `;
+                document.querySelector('#sync-status + .tooltiptext').textContent = 'Ative a sincronização nas configurações';
+            }
+        }
+
+        async function backupData() {
+            try {
+                // Mostrar indicador de sincronização
+                document.getElementById('cloud-sync-indicator').classList.remove('hidden');
+                
+                // Obter dados do usuário
+                const userDoc = await db.collection('users').doc(currentUser).get();
+                
+                if (!userDoc.exists) {
+                    throw new Error("Documento do usuário não encontrado");
+                }
+                
+                const userData = userDoc.data();
+                
+                // Obter todos os meses
+                const monthsSnapshot = await db.collection('users').doc(currentUser).collection('months').get();
+                const months = {};
+                
+                monthsSnapshot.forEach(doc => {
+                    months[doc.id] = doc.data();
+                });
+                
+                // Criar objeto de backup com metadados
+                const backup = {
+                    version: '1.0',
+                    timestamp: new Date().toISOString(),
+                    email: auth.currentUser.email,
+                    userData: userData,
+                    months: months
+                };
+                
+                // Converter para JSON
+                const backupJson = JSON.stringify(backup);
+                
+                // Criar blob e link para download
+                const blob = new Blob([backupJson], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `controle-financeiro-backup-${formatDateForFilename(new Date())}.json`;
+                document.body.appendChild(a);
+                a.click();
+                
+                // Limpar
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }, 0);
+                
+                showSaveIndicator('Backup realizado com sucesso!');
+                
+                // Esconder indicador de sincronização
+                document.getElementById('cloud-sync-indicator').classList.add('hidden');
+                
+            } catch (error) {
+                console.error("Erro ao fazer backup:", error);
+                document.getElementById('cloud-sync-indicator').classList.add('hidden');
+                showSaveIndicator('Erro ao fazer backup', 'error');
+            }
+        }
+
+        async function restoreData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                try {
+                    const backup = JSON.parse(e.target.result);
+                    
+                    // Verificar se é um backup válido
+                    if (!backup.userData || !backup.version || !backup.timestamp || !backup.months) {
+                        throw new Error('Arquivo de backup inválido');
+                    }
+                    
+                    // Confirmar restauração
+                    // Substituir alert() e confirm() por modais
+                    const confirmation = window.confirm('Tem certeza que deseja restaurar os dados? Isso substituirá todos os seus dados atuais.');
+                    if (!confirmation) {
+                        return;
+                    }
+                    
+                    // Mostrar indicador de sincronização
+                    document.getElementById('cloud-sync-indicator').classList.remove('hidden');
+                    
+                    // Restaurar dados do usuário (exceto email)
+                    const userRef = db.collection('users').doc(currentUser);
+                    
+                    // Manter o email atual, mas restaurar o resto
+                    const userData = backup.userData;
+                    userData.email = auth.currentUser.email;
+                    
+                    await userRef.set(userData);
+                    
+                    // Restaurar meses
+                    const batch = db.batch();
+                    
+                    // Primeiro, excluir todos os meses existentes
+                    const monthsSnapshot = await db.collection('users').doc(currentUser).collection('months').get();
+                    monthsSnapshot.forEach(doc => {
+                        batch.delete(doc.ref);
+                    });
+                    
+                    // Depois, adicionar os meses do backup
+                    for (const [monthKey, monthData] of Object.entries(backup.months)) {
+                        const monthRef = db.collection('users').doc(currentUser).collection('months').doc(monthKey);
+                        batch.set(monthRef, monthData);
+                    }
+                    
+                    // Executar batch
+                    await batch.commit();
+                    
+                    // Atualizar interface
+                    loadUserData();
+                    
+                    showSaveIndicator('Dados restaurados com sucesso!');
+                    
+                    // Esconder indicador de sincronização
+                    document.getElementById('cloud-sync-indicator').classList.add('hidden');
+                    
+                } catch (error) {
+                    console.error("Erro ao restaurar dados:", error);
+                    document.getElementById('cloud-sync-indicator').classList.add('hidden');
+                    showSaveIndicator('Erro ao restaurar dados', 'error');
+                }
+            };
+            reader.readAsText(file);
+            
+            // Limpar input
+            event.target.value = '';
+        }
+
+        async function clearData() {
+            // Substituir confirm() por modais
+            const confirmation1 = window.confirm('Tem certeza que deseja limpar todos os seus dados? Esta ação não pode ser desfeita.');
+            if (!confirmation1) {
+                return;
+            }
+            
+            const confirmation2 = window.confirm('ATENÇÃO: Todos os seus dados serão perdidos permanentemente. Confirma esta ação?');
+            if (!confirmation2) {
+                return;
+            }
+            
+            try {
+                // Mostrar indicador de sincronização
+                document.getElementById('cloud-sync-indicator').classList.remove('hidden');
+                
+                // Obter referência do documento do usuário
+                const userRef = db.collection('users').doc(currentUser);
+                
+                // Redefinir categorias
+                await userRef.update({
+                    categories: {
+                        income: ['Salário', 'Freelance', 'Investimentos', 'Outros'],
+                        expense: ['Alimentação', 'Moradia', 'Transporte', 'Saúde', 'Educação', 'Lazer', 'Outros']
+                    }
+                });
+                
+                // Excluir todos os meses
+                const monthsSnapshot = await db.collection('users').doc(currentUser).collection('months').get();
+                const batch = db.batch();
+                
+                monthsSnapshot.forEach(doc => {
+                    batch.delete(doc.ref);
+                });
+                
+                await batch.commit();
+                
+                // Atualizar interface
+                loadUserData();
+                
+                showSaveIndicator('Todos os dados foram limpos');
+                
+                // Esconder indicador de sincronização
+                document.getElementById('cloud-sync-indicator').classList.add('hidden');
+                
+            } catch (error) {
+                console.error("Erro ao limpar dados:", error);
+                document.getElementById('cloud-sync-indicator').classList.add('hidden');
+                showSaveIndicator('Erro ao limpar dados', 'error');
+            }
+        }
+
+        async function exportCurrentMonthData() {
+            try {
+                // Obter dados do mês atual
+                const monthDoc = await db.collection('users').doc(currentUser).collection('months').doc(getCurrentMonthKey()).get();
+                
+                let monthData;
+                if (monthDoc.exists) {
+                    monthData = monthDoc.data();
+                } else {
+                    monthData = { initialBalance: 0, transactions: [] };
+                }
+                
+                // Calcular totais
+                let totalIncome = 0;
+                let totalExpenses = 0;
+                
+                if (monthData.transactions) {
+                    monthData.transactions.forEach(transaction => {
+                        if (transaction.type === 'income') {
+                            totalIncome += transaction.amount;
+                        } else {
+                            totalExpenses += transaction.amount;
+                        }
+                    });
+                }
+                
+                const finalBalance = monthData.initialBalance + totalIncome - totalExpenses;
+                
+                // Criar dados para CSV
+                let csvContent = 'data:text/csv;charset=utf-8,';
+                
+                // Cabeçalho
+                csvContent += 'Controle Financeiro - ' + document.getElementById('current-month').textContent + '\r\n\r\n';
+                csvContent += 'Saldo Inicial:,' + formatCurrency(monthData.initialBalance) + '\r\n';
+                csvContent += 'Total de Receitas:,' + formatCurrency(totalIncome) + '\r\n';
+                csvContent += 'Total de Despesas:,' + formatCurrency(totalExpenses) + '\r\n';
+                csvContent += 'Saldo Final:,' + formatCurrency(finalBalance) + '\r\n\r\n';
+                
+                // Cabeçalho da tabela
+                csvContent += 'Data,Descrição,Categoria,Valor,Tipo\r\n';
+                
+                // Dados das transações
+                if (monthData.transactions) {
+                    monthData.transactions.forEach(transaction => {
+                        const row = [
+                            formatDate(transaction.date),
+                            `"${transaction.description}"`, // Adicionar aspas para evitar problemas com vírgulas na descrição
+                            `"${transaction.category}"`, // Adicionar aspas para evitar problemas com vírgulas na categoria
+                            formatCurrency(transaction.amount),
+                            transaction.type === 'income' ? 'Receita' : 'Despesa'
+                        ];
+                        
+                        csvContent += row.join(',') + '\r\n';
+                    });
+                }
+                
+                // Criar link para download
+                const encodedUri = encodeURI(csvContent);
+                const link = document.createElement('a');
+                link.setAttribute('href', encodedUri);
+                link.setAttribute('download', `controle-financeiro-${formatDateForFilename(new Date())}.csv`);
+                document.body.appendChild(link);
+                link.click();
+                
+                // Limpar
+                setTimeout(() => {
+                    document.body.removeChild(link);
+                }, 0);
+                
+                showSaveIndicator('Dados exportados com sucesso!');
+                
+            } catch (error) {
+                console.error("Erro ao exportar dados:", error);
+                showSaveIndicator('Erro ao exportar dados', 'error');
+            }
+        }
+
+        // Funções utilitárias
+        function generateId() {
+            return Date.now().toString(36) + Math.random().toString(36).substr(2);
+        }
+
+        function formatCurrency(value) {
+            return new Intl.NumberFormat('pt-BR', {
+                style: 'currency',
+                currency: 'BRL'
+            }).format(value);
+        }
+
+        function formatDate(dateString) {
+            const date = new Date(dateString + 'T00:00:00'); // Adicionar T00:00:00 para evitar problemas de fuso horário
+            return date.toLocaleDateString('pt-BR');
+        }
+
+        function formatDateForFilename(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        function calculateFinalBalance(monthData) {
+            let totalIncome = 0;
+            let totalExpenses = 0;
+            
+            if (monthData.transactions) {
+                monthData.transactions.forEach(transaction => {
+                    if (transaction.type === 'income') {
+                        totalIncome += transaction.amount;
+                    } else {
+                        totalExpenses += transaction.amount;
+                    }
+                });
+            }
+            
+            return (monthData.initialBalance || 0) + totalIncome - totalExpenses;
+        }
+
+        function generateColors(count, type) {
+            const baseColors = type === 'income' ? 
+                ['#10b981', '#34d399', '#6ee7b7', '#a7f3d0', '#d1fae5'] : 
+                ['#ef4444', '#f87171', '#fca5a5', '#fecaca', '#fee2e2'];
+            
+            const colors = [];
+            for (let i = 0; i < count; i++) {
+                colors.push(baseColors[i % baseColors.length]);
+            }
+            
+            return colors;
+        }
+
+        function showSaveIndicator(message, type = 'success') {
+            const indicator = document.getElementById('save-indicator');
+            document.getElementById('save-text').textContent = message;
+            
+            // Definir cor com base no tipo
+            if (type === 'error') {
+                indicator.classList.remove('bg-green-500');
+                indicator.classList.add('bg-red-500');
+            } else {
+                indicator.classList.remove('bg-red-500');
+                indicator.classList.add('bg-green-500');
+            }
+            
+            // Limpar timeout anterior se existir
+            if (saveTimeout) {
+                clearTimeout(saveTimeout);
+            }
+            
+            // Mostrar indicador
+            indicator.classList.add('show');
+            
+            // Esconder após 3 segundos
+            saveTimeout = setTimeout(() => {
+                indicator.classList.remove('show');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
