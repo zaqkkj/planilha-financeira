@@ -1389,7 +1389,7 @@
                     category: category,
                     amount: amount,
                     type: 'income',
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                    createdAt: new Date().toISOString()
                 };
                 
                 // Adicionar à lista de transações
@@ -1445,7 +1445,7 @@
                     category: category,
                     amount: amount,
                     type: 'expense',
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                    createdAt: new Date().toISOString()
                 };
                 
                 // Adicionar à lista de transações
@@ -1583,7 +1583,8 @@
                     category: category,
                     amount: amount,
                     type: type,
-                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    // Correção: Use o timestamp local em vez de FieldValue.serverTimestamp()
+                    updatedAt: new Date().toISOString()
                 };
                 
                 // Salvar dados atualizados
